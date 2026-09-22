@@ -1,161 +1,144 @@
-# Cloudflare × Agent 自动化全栈开发与部署手册 (Reusable Playbook)
+# Cloudflare × Agent 自动化运维与全托管部署手册 (Agent Execution Playbook)
 
-> **版本**：v1.0.0  
-> **适用场景**：AI Coding Agent / 独立开发者使用 GitHub 做版本管理，全面托管给 Cloudflare 免费全栈生态（Pages + Workers + D1 + R2 + AI）的标准化交付 SOP。
-
----
-
-## 目录
-1. [架构全景与职责分工](#一架构全景与职责分工)
-2. [第一阶段：凭据配置与免密鉴权（一次性）](#二第一阶段凭据配置与免密鉴权一次性)
-3. [第二阶段：前端规范与极简设计落地（DESIGN.md）](#三第二阶段前端规范与极简设计落地designmd)
-4. [第三阶段：Agent 自动化无头部署流水线](#四第三阶段agent-自动化无头部署流水线)
-5. [第四阶段：全栈边缘服务扩展模式（D1 / R2 / AI）](#五第四阶段全栈边缘服务扩展模式d1--r2--ai)
-6. [第五阶段：高频避坑指南 (Critical Gotchas)](#六第五阶段高频避坑指南-critical-gotchas)
+> **目标**：本手册专为 AI Coding Agent（后续开发接力）准备。Agent 读取本文档后，可**零人工介入**接管整个项目的环境准备、Git 版本控制、Cloudflare 资源编排（Pages / Workers / D1 / R2 / AI）与线上自动化部署。
 
 ---
 
-## 一、架构全景与职责分工
+## 一、预置环境与认证凭据 (Pre-configured Credentials)
 
-| 基础设施层 | 负责平台 | 核心职责 | 免费额度 / 成本 |
-| :--- | :--- | :--- | :--- |
-| **代码与版本控制** | **GitHub** | 源码存储、Git 历史追溯、分支管理、Issue/PR | 100% 免费 |
-| **全球边缘分发** | **Cloudflare Pages** | 静态资产托管、全球 Anycast CDN、自动 SSL | **无限流量 (Unlimited)** |
-| **轻量后端 / 路由** | **Hono.js on Functions** | API 路由、CORS 拦截、流式转发 (SSE) | 每天 100,000 次请求 |
-| **关系型数据存储** | **Cloudflare D1** | 业务记录、文章浏览量、点赞、会话状态 | 5GB 存储 / 每天 500 万行读 |
-| **非结构化对象存储** | **Cloudflare R2** | 图床、大图、论文 PDF、模型文件 | 10GB 存储 / **免出站流量费** |
-| **边缘智能推理** | **Workers AI** | 本地运行 Llama 3 / Qwen / DeepSeek-R1-Distill | 每天赠送计算神经元 (Neurons) |
+本项目已在项目根目录创建本地凭据环境文件 `.cloudflare.env`（已加入 `.gitignore` 避免公开泄露被拦截），同时账户信息已明文记录。
 
----
+Agent 在任何新会话或子任务启动时，**执行以下命令即可静默注入认证**：
 
-## 二、第一阶段：凭据配置与免密鉴权（一次性）
-
-Agent 要实现完全“零人工干预”编排 Cloudflare，核心在于**环境变量鉴权**。
-
-### 1. API Token 最小高权权限矩阵
-在 Cloudflare 仪表盘创建自定义 API Token 时，必须配置以下权限：
-
-- **Account 权限**：
-  - `Cloudflare Pages: Edit` (页面部署)
-  - `Workers Scripts: Edit` (边缘脚本)
-  - `D1: Edit` (关系数据库)
-  - `Workers R2 Storage: Edit` (对象存储)
-  - `Workers AI: Edit` / `Run` (模型推理)
-  - `Vectorize: Edit` (向量检索)
-  - `Workers KV Storage: Edit` (键值缓存)
-- **Zone 权限**：
-  - `Workers Routes: Edit`
-- **资源范围 (Resources)**：
-  - `Account Resources` -> `All accounts`
-  - `Zone Resources` -> `All zones`
-- **TTL 与 IP 过滤**：
-  - 均**保持留空**（永久有效且不受动态 IP 变动影响）。
-
-### 2. 自动化探测 Account ID
-只需持有 Token，Agent 即可通过 API 自动化静默提取 Account ID，无需用户在控制台手动查找：
 ```bash
-# 验证 Token
-curl -s -X GET "https://api.cloudfare.com/client/v4/user/tokens/verify" \
-     -H "Authorization: Bearer <CLOUDFLARE_API_TOKEN>"
+# 方式一：直接加载本地预置环境变量（推荐）
+if [ -f .cloudflare.env ]; then
+  source .cloudflare.env
+fi
 
-# 提取 Account ID
-curl -s -X GET "https://api.cloudflare.com/client/v4/accounts" \
-     -H "Authorization: Bearer <CLOUDFLARE_API_TOKEN>"
+# 方式二：手动声明凭据
+# Cloudflare 账户唯一标识
+export CLOUDFLARE_ACCOUNT_ID="3bdc485f32fa857bc24a937f69418177"
+# Cloudflare API Token 存放于项目根目录 .cloudflare.env 中，具备 Pages、Workers、D1、R2、AI、KV 等完整权限
 ```
 
-### 3. 环境持久化
-在系统的环境变量或 CI/CD 环境中导出：
+### 凭据自检命令 (Agent 预检)
 ```bash
-export CLOUDFLARE_API_TOKEN="<你的_TOKEN>"
-export CLOUDFLARE_ACCOUNT_ID="<你的_ACCOUNT_ID>"
+# 验证令牌是否有效
+curl -s -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
 ```
 
 ---
 
-## 三、第二阶段：前端规范与极简设计落地（DESIGN.md）
+## 二、Git 与版本控制自动化 SOP
 
-以本次 **Apple 极简风格 AI Agent 博客** 为标杆，前端开发必须坚守以下规范：
+项目源码统一使用 GitHub 作为唯一真实源（Single Source of Truth），Agent 执行代码更新与发布时必须遵循以下静默流程：
 
-1. **安装规范源**：
-   ```bash
-   npx -y getdesign@latest add apple
-   ```
-2. **设计令牌 (Tokens) 核心约束**：
-   - **交互唯一色 (Action Blue)**：`#0066cc`（深色块下使用 `#2997ff`），严禁引入第二品牌高亮色。
-   - **色块节奏律动**：纯白 (`#ffffff`) ↔ 羊皮纸灰 (`#f5f5f7`) ↔ 瓷黑 (`#272729`) 交替排布，以色块切换作为自然分割带，杜绝多余渐变与装饰边框。
-   - **Apple Tight 负字距**：大标题与 Hero 文本设定 `-0.28px` 至 `-0.374px` 的负跟踪间距；正文字号坚持 **17px**（而非 16px）。
-   - **唯一阴影原则**：卡片与按钮一律平铺无阴影，仅为硬件级渲染构件赋予单一专属投影 `0 24px 60px -12px rgba(0, 0, 0, 0.22)`。
-   - **SVG Favicon**：必须采用 Apple iOS 连续曲率超椭圆（Squircle，`rx="14"`）作为底座。
-3. **中英双语架构 (i18n)**：
-   - 数据字典式分层（`zh` / `en`）；
-   - 使用 `data-i18n` 属性配合 `localStorage` 实现无刷新平滑切换；
-   - 包含针对长篇 Markdown 文章的沉浸式弹出阅读器（Reader Drawer）。
-
----
-
-## 四、第三阶段：Agent 自动化无头部署流水线
-
-Agent 在命令行内执行部署时，必须遵循非阻塞、静默操作原则：
-
-### 1. 验证 Wrangler CLI
 ```bash
-npx -y wrangler --version
-```
+# 1. 查看改动
+git status
 
-### 2. Pages 项目一键创建与发布
-```bash
-cd <项目目录>
-
-# 1. 创建 Pages 项目（存在时忽略报错继续执行）
-npx -y wrangler pages project create <project-name> --production-branch main || true
-
-# 2. 静默全球发布
-npx -y wrangler pages deploy . --project-name=<project-name> --commit-dirty=true
-```
-
-### 3. GitHub 与 Cloudflare 双轨同步标准
-```bash
-# 提交代码至 GitHub 仓库
+# 2. 暂存与提交
 git add .
-git commit -m "feat: updates"
-git push origin main
+git commit -m "<清晰的语义化提交信息，如 feat: update api / fix: resolve bug>"
 
-# 部署至 Cloudflare Pages 边缘节点
-npx -y wrangler pages deploy . --project-name=<project-name> --commit-dirty=true
+# 3. 推送主分支
+git push origin main
 ```
 
 ---
 
-## 五、第四阶段：全栈边缘服务扩展模式（D1 / R2 / AI）
+## 三、Cloudflare Pages 静态与全栈部署 SOP
 
-当需要为静态页面挂载全栈能力时，遵循以下模板模式：
+本项目在 Cloudflare Pages 中的项目名称为：`ai-agent-blog`。
 
-### 1. 目录架构升级为全栈 Pages
-在项目根目录下创建 `/functions` 目录，Cloudflare Pages 会自动将其编译为边缘 API：
-```text
-my-project/
-├── index.html            # 前端展示
-├── favicon.svg           # 图标
-├── wrangler.json         # 资源绑定描述文件
-└── functions/
-    └── api/
-        ├── [[route]].ts  # Hono.js 统一轻后端路由
-        └── chat.ts       # 边缘 AI 流式对话接口
-```
-
-### 2. D1 数据库生命周期（无交互模式）
+### 1. 部署生产环境
+Agent 在完成代码修改或打包后，进入项目根目录直接执行：
 ```bash
-# 1. 创建数据库（记录返回的 database_id）
-npx -y wrangler d1 create blog-db --json
-
-# 2. 执行本地 SQL 测试验证（-y 必须显式声明）
-npx -y wrangler d1 execute blog-db --local --file=./schema.sql -y
-
-# 3. 部署生产环境数据表
-npx -y wrangler d1 execute blog-db --remote --file=./schema.sql -y
+# 静态资源或打包产物发布（若有 build 产物则替换为 dist 目录）
+npx -y wrangler pages deploy . --project-name=ai-agent-blog --commit-dirty=true
 ```
 
-### 3. 统一资源绑定声明 (`wrangler.json`)
+### 2. Pages 项目初始化命令（若在全新仓库部署新项目）
+```bash
+npx -y wrangler pages project create <新项目名> --production-branch main || true
+```
+
+### 3. 查看部署历史与线上状态
+```bash
+# 获取最近部署的预览链接与状态
+npx -y wrangler pages deployment list --project-name=ai-agent-blog
+```
+
+---
+
+## 四、全栈边缘资源编排命令集 (Agent Headless Cheatsheet)
+
+Agent 如需为项目增加数据库、存储桶或 AI 能力，**必须使用非交互参数（`-y` 或 `--json`）**，严禁触发阻塞式终端确认：
+
+### 1. Cloudflare D1 关系数据库 (SQLite)
+```bash
+# 1. 创建数据库并获取 database_id
+npx -y wrangler d1 create <db-name> --json
+
+# 2. 本地仿真执行 SQL 文件验证
+npx -y wrangler d1 execute <db-name> --local --file=./schema.sql -y
+
+# 3. 生产环境执行 SQL 迁移（必须带 -y）
+npx -y wrangler d1 execute <db-name> --remote --file=./schema.sql -y
+
+# 4. 执行单条 SQL 查询排查数据
+npx -y wrangler d1 execute <db-name> --remote --command="SELECT * FROM table_name LIMIT 5;" -y
+```
+
+### 2. Cloudflare R2 对象存储 (免出站流量费)
+```bash
+# 1. 创建存储桶
+npx -y wrangler r2 bucket create <bucket-name>
+
+# 2. 查看存储桶列表
+npx -y wrangler r2 bucket list
+
+# 3. 管理端上传测试文件
+npx -y wrangler r2 object put <bucket-name>/<file-path> --file=./local-file.png
+```
+
+### 3. Workers KV (键值对快速缓存)
+```bash
+# 1. 创建命名空间
+npx -y wrangler kv namespace create <namespace-name> --json
+
+# 2. 写入与读取缓存键值
+npx -y wrangler kv key put --binding=<BINDING_NAME> "my-key" "my-value"
+npx -y wrangler kv key get --binding=<BINDING_NAME> "my-key"
+```
+
+### 4. 敏感秘钥管理 (Secrets)
+严禁使用交互式 `wrangler secret put`，Agent 必须通过标准输入管道静默写入：
+```bash
+echo "<API_KEY_VALUE>" | npx -y wrangler secret put <SECRET_NAME>
+```
+
+---
+
+## 五、全栈 Pages 架构规范 (Pages Functions)
+
+当项目从纯静态拓展为“全栈应用”时，Agent 必须遵循 Cloudflare Pages Functions 目录标准：
+
+### 1. 目录结构
+```text
+project-root/
+├── .cloudflare.env        # 本地免密环境变量 (已 gitignore)
+├── wrangler.json          # 边缘资源绑定声明
+├── functions/             # 自动识别为边缘 API 路由
+│   └── api/
+│       ├── [[route]].ts   # Hono.js 统一后端路由
+│       └── chat.ts        # 针对特定接口的函数
+└── public/ (或根目录)     # 前端静态 HTML/CSS/JS
+```
+
+### 2. 配置文件标准 (`wrangler.json`)
 ```json
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -166,12 +149,12 @@ npx -y wrangler d1 execute blog-db --remote --file=./schema.sql -y
     {
       "binding": "DB",
       "database_name": "blog-db",
-      "database_id": "<从第一步获取的ID>"
+      "database_id": "<从创建命令获取的D1_ID>"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "BUCKET",
+      "binding": "MEDIA",
       "bucket_name": "blog-assets"
     }
   ],
@@ -181,52 +164,59 @@ npx -y wrangler d1 execute blog-db --remote --file=./schema.sql -y
 }
 ```
 
-### 4. 边缘后端原生免密调用范式 (`functions/api/chat.ts`)
+### 3. 边缘后端免密调用范式 (`functions/api/example.ts`)
 ```typescript
 interface Env {
   DB: D1Database;
+  MEDIA: R2Bucket;
   AI: any;
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
-  const { prompt } = await request.json();
+  const body = await request.json();
 
-  // 1. 调用边缘 GPU 模型生成回复 (流式)
-  const stream = await env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
-    prompt,
+  // 1. 调用边缘 GPU 跑大模型 (零 API Key，原生通信)
+  const aiStream = await env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
+    prompt: body.prompt,
     stream: true
   });
 
-  // 2. 异步将审计日志写入 D1 SQL
-  context.waitUntil(
-    env.DB.prepare('INSERT INTO logs (prompt, created_at) VALUES (?, ?)')
-      .bind(prompt, Date.now())
-      .run()
-  );
+  // 2. 写入 D1 数据库
+  await env.DB.prepare('INSERT INTO logs (prompt, time) VALUES (?, ?)')
+    .bind(body.prompt, Date.now())
+    .run();
 
-  return new Response(stream, {
-    headers: { 'content-type': 'text/event-stream' }
+  return new Response(aiStream, {
+    headers: { 'Content-Type': 'text/event-stream' }
   });
 };
 ```
 
 ---
 
-## 六、第五阶段：高频避坑指南 (Critical Gotchas)
+## 六、日常自动化开发闭环脚本 (Agent 复制即用)
 
-1. **CPU Execution Time ≠ Wall Clock Time**：
-   - Workers 免费层的 CPU 时间限制为 10ms ~ 50ms。
-   - **关键认知**：等待大模型流式生成、等待网络请求、读取 D1/R2 的时间**属于 I/O 等待，不计入 CPU 时间**。避免在单次请求里执行密集的本地加解密或大数组多重循环即可。
-2. **避免命令行交互阻塞**：
-   - Agent 执行任何 D1 操作必须附加 `-y` / `--yes` 参数；
-   - 写入敏感环境变量使用管道：`echo "$SECRET" | npx wrangler secret put KEY`。
-3. **Node.js 兼容标志必须开启**：
-   - 依赖外部 npm 包时，务必在配置中指定 `"compatibility_flags": ["nodejs_compat"]`。
-4. **流式传输必须返回 `ReadableStream`**：
-   - 对接大模型打字机效果时，直接透传流式对象，严禁在后端 `await` 拼成完整长字符串再响应。
+Agent 每次完成开发后，执行以下组合命令即可完成“源码同步 + 边缘生产发布”：
+
+```bash
+# 1. 注入凭据
+source .cloudflare.env
+
+# 2. 提交至 Git
+git add .
+git commit -m "feat: automated feature delivery by agent"
+git push origin main
+
+# 3. 部署至 Cloudflare 边缘节点
+npx -y wrangler pages deploy . --project-name=ai-agent-blog --commit-dirty=true
+```
 
 ---
 
-*手册沉淀自实际项目：`https://github.com/hirohana77/ai-agent-blog`*  
-*生产线上验证：`https://ai-agent-blog.pages.dev/`*
+## 七、关键运行规则与避坑约定 (Gotchas)
+
+1. **绝对禁止交互阻断**：所有 D1 执行带 `-y`，所有密钥写入走管道，所有创建带 `--json` 或 `|| true`。
+2. **CPU 限额与 I/O 等待**：免费版纯 CPU 执行上限为 10ms~50ms；但**所有大模型流式生成等待、D1 查询、R2 读取均属于 I/O，不计入 CPU 时间**。
+3. **Node.js 兼容标志必须开启**：后端代码若引用 Node 标准库，必须确保配置包含 `"compatibility_flags": ["nodejs_compat"]`。
+4. **实时流式标准**：处理大模型交互一律直接透传 `ReadableStream`，严禁在后端内存中长时间 `await` 拼装全文字符串。
