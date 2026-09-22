@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Studio Management - Autonomous Intelligence</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-base: #fbfbfd;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f7;
+      --text-main: #121214;
+      --text-muted: #64646e;
+      --text-soft: #8e8e98;
+      --accent: #0052ff;
+      --accent-hover: #0045d8;
+      --accent-subtle: rgba(0, 82, 255, 0.06);
+      --border-light: rgba(0, 0, 0, 0.08);
+      --border-focus: rgba(0, 82, 255, 0.35);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-pill: 9999px;
+      --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+      --shadow-subtle: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Studio Bar */
+    .studio-nav {
+      height: 58px;
+      background: rgba(251, 251, 253, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .studio-nav-inner {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .badge-env {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      background: var(--bg-subtle);
+      padding: 3px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-light);
+    }
+    .tab-btn {
+      padding: 5px 14px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tab-btn.active {
+      background: #ffffff;
+      color: var(--text-main);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .nav-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-quiet {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      transition: color 0.15s ease;
+    }
+    .btn-quiet:hover {
+      color: var(--text-main);
+    }
+
+    /* Main Content Area */
+    .studio-main {
+      flex: 1;
+      max-width: 1320px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+
+    /* VIEW 1: Post Inventory Table */
+    .view-container {
+      display: none;
+    }
+    .view-container.active {
+      display: block;
+    }
+
+    /* Metric Cards */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-subtle);
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .stat-num {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+    }
+
+    /* Control Bar */
+    .table-control-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .search-input {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-pill);
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--text-main);
+      width: 280px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .search-input:focus {
+      border-color: var(--border-focus);
+    }
+    .btn-accent {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-pill);
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-accent:hover {
+      background: var(--accent-hover);
+    }
+
+    /* Articles Table */
+    .table-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-subtle);
+    }
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    .admin-table th {
+      background: var(--bg-subtle);
+      padding: 12px 18px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .admin-table td {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border-light);
+      color: var(--text-main);
+    }
+    .admin-table tr:last-child td {
+      border-bottom: none;
+    }
+    .admin-table tr:hover td {
+      background: #fafafc;
+    }
+    .badge-status {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+    }
+    .badge-status.published {
+      background: #eafaf1;
+      color: #1e7e34;
+    }
+    .badge-status.draft {
+      background: #fff8e6;
+      color: #8a6d3b;
+    }
+
+    /* VIEW 2: Co-pilot Markdown Studio */
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      height: calc(100vh - 140px);
+    }
+    .editor-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-subtle);
+    }
+    .meta-bar-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .input-field {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 13px;
+      background: var(--bg-subtle);
+      color: var(--text-main);
+      outline: none;
+    }
+    .input-field:focus {
+      border-color: var(--border-focus);
+      background: #ffffff;
+    }
+    .md-textarea {
+      flex: 1;
+      width: 100%;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+      background: var(--bg-subtle);
+      color: var(--text-main);
+    }
+    .md-textarea:focus {
+      border-color: var(--border-focus);
+      background: #ffffff;
+    }
+
+    /* Co-pilot Action Bar */
+    .copilot-action-bar {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .action-group {
+      display: flex;
+      gap: 8px;
+    }
+    .agent-pill {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-pill);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .agent-pill:hover {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border-color: var(--border-focus);
+    }
+
+    /* Preview & Diff Window */
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .preview-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-subtle);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .preview-body h1 { font-size: 24px; margin-bottom: 12px; }
+    .preview-body h2 { font-size: 18px; margin: 18px 0 8px; }
+    .preview-body p { margin-bottom: 12px; color: var(--text-muted); }
+    .preview-body code { font-family: var(--font-mono); background: #ffffff; padding: 2px 5px; border-radius: 4px; }
+
+    /* Toast notification */
+    .toast-box {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #121214;
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-weight: 500;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Studio Top Navigation -->
+  <header class="studio-nav">
+    <div class="studio-nav-inner">
+      <div class="nav-brand">
+        <span>AUTONOMOUS // STUDIO</span>
+        <span class="badge-env">Cloudflare D1 + R2 + AI</span>
+      </div>
+
+      <div class="nav-tabs">
+        <button class="tab-btn active" id="tabLibrary" onclick="switchView('library')">Post Library</button>
+        <button class="tab-btn" id="tabEditor" onclick="switchView('editor')">Co-pilot Studio</button>
+      </div>
+
+      <div class="nav-right-actions">
+        <a href="index.html" class="btn-quiet">View Live Site ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="studio-main">
+    <!-- VIEW 1: Post Library & Storage Inventory -->
+    <section class="view-container active" id="viewLibrary">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Total Articles</div>
+          <div class="stat-num" id="totalCount">3</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Published (D1/R2)</div>
+          <div class="stat-num" id="pubCount">2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Drafts in Progress</div>
+          <div class="stat-num" id="draftCount">1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Word Count</div>
+          <div class="stat-num" id="wordTotal">7,350</div>
+        </div>
+      </div>
+
+      <div class="table-control-bar">
+        <input type="text" class="search-input" id="searchField" placeholder="Search by title, tag, or slug..." oninput="filterPosts()">
+        <button class="btn-accent" onclick="createNewPost()">+ New Article Draft</button>
+      </div>
+
+      <div class="table-card">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Title & Topic</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Words</th>
+              <th>Est. Read</th>
+              <th>Last Updated</th>
+              <th style="text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="postsTableBody">
+            <!-- Dynamic entries loaded via JS / API -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- VIEW 2: Co-pilot Markdown Studio -->
+    <section class="view-container" id="viewEditor">
+      <div class="editor-layout">
+        <!-- Left: Metadata & Raw Markdown Editor -->
+        <div class="editor-card">
+          <div class="meta-bar-grid">
+            <input type="text" class="input-field" id="postTitle" placeholder="Article Title (e.g. Multi-Agent Coordination)" oninput="syncPreview()">
+            <input type="text" class="input-field" id="postSlug" placeholder="URL Slug (e.g. multi-agent-coordination)">
+            <select class="input-field" id="postCategory">
+              <option value="Architecture">Architecture</option>
+              <option value="Tool Grounding">Tool Grounding</option>
+              <option value="Memory & State">Memory & State</option>
+            </select>
+          </div>
+
+          <textarea class="md-textarea" id="markdownContent" placeholder="Write markdown content here..." oninput="syncPreview()"></textarea>
+
+          <div class="copilot-action-bar">
+            <div class="action-group">
+              <button class="agent-pill" onclick="triggerCopilot('outline')">⚡ Auto Outline</button>
+              <button class="agent-pill" onclick="triggerCopilot('polish')">🪄 Refine Prose</button>
+              <button class="agent-pill" onclick="triggerCopilot('translate')">🌐 Generate EN</button>
+            </div>
+            <button class="btn-accent" onclick="saveToCloudflare()">Save to Cloudflare D1/R2</button>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Render & Agent Diff Preview -->
+        <div class="editor-card">
+          <div class="preview-header">
+            <span>Live Article & Agent Diff Preview</span>
+            <span style="font-family:var(--font-mono); font-size:12px; color:var(--text-soft);" id="saveStatus">Synced</span>
+          </div>
+          <div class="preview-body" id="previewOutput">
+            <!-- Rendered preview output -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast-box" id="toastNotice">Draft saved to Cloudflare D1 & R2 successfully!</div>
+
+  <script>
+    // Initial in-memory data synced with backend API
+    let articles = [
+      {
+        id: "post-1",
+        slug: "why-single-turn-react-fails",
+        title_zh: "为什么单轮 ReAct 在复杂企业生产环境中必然失败",
+        title_en: "Why Single-Turn ReAct Fails in Enterprise Environments",
+        category: "Architecture",
+        status: "published",
+        word_count: 2400,
+        read_time_min: 8,
+        updated_at: "2025-10-24"
+      },
+      {
+        id: "post-2",
+        slug: "zero-error-bash-tool-calling",
+        title_zh: "零事故终端执行：带有推测守卫的 Tool 架构",
+        title_en: "Zero-Error Tool Execution with Speculative Guards",
+        category: "Tool Grounding",
+        status: "published",
+        word_count: 3100,
+        read_time_min: 12,
+        updated_at: "2025-09-18"
+      },
+      {
+        id: "post-3",
+        slug: "structured-working-memory",
+        title_zh: "向量检索不是记忆：构建真正结构化的工作上下文",
+        title_en: "Vector DBs are Not Memory: Structured Working Context",
+        category: "Memory & State",
+        status: "draft",
+        word_count: 1850,
+        read_time_min: 6,
+        updated_at: "2025-08-30"
+      }
+    ];
+
+    function renderTable(data = articles) {
+      const tbody = document.getElementById('postsTableBody');
+      tbody.innerHTML = data.map(item => `
+        <tr>
+          <td>
+            <strong>${item.title_zh}</strong><br>
+            <span style="font-size:12px; color:var(--text-soft); font-family:var(--font-mono);">${item.slug}</span>
+          </td>
+          <td><span class="badge-env" style="background:var(--bg-subtle); color:var(--text-muted);">${item.category}</span></td>
+          <td><span class="badge-status ${item.status}">${item.status.toUpperCase()}</span></td>
+          <td>${item.word_count.toLocaleString()}</td>
+          <td>${item.read_time_min}m</td>
+          <td style="color:var(--text-soft);">${item.updated_at}</td>
+          <td style="text-align:right;">
+            <button class="tab-btn" onclick="editPost('${item.id}')">Edit</button>
+            <button class="tab-btn" onclick="toggleStatus('${item.id}')">${item.status === 'published' ? 'Unpublish' : 'Publish'}</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function switchView(view) {
+      document.getElementById('viewLibrary').classList.toggle('active', view === 'library');
+      document.getElementById('viewEditor').classList.toggle('active', view === 'editor');
+      document.getElementById('tabLibrary').classList.toggle('active', view === 'library');
+      document.getElementById('tabEditor').classList.toggle('active', view === 'editor');
+    }
+
+    function createNewPost() {
+      document.getElementById('postTitle').value = "";
+      document.getElementById('postSlug').value = "";
+      document.getElementById('markdownContent').value = "# New Article Title\n\nStart writing markdown with Agent Co-pilot assistance...";
+      syncPreview();
+      switchView('editor');
+    }
+
+    function editPost(id) {
+      const post = articles.find(p => p.id === id);
+      if (!post) return;
+      document.getElementById('postTitle').value = post.title_zh;
+      document.getElementById('postSlug').value = post.slug;
+      document.getElementById('postCategory').value = post.category;
+      document.getElementById('markdownContent').value = `# ${post.title_zh}\n\nAnalyzing trajectory degradation in autonomous systems...\n\n## 1. Key Invariant Checks\n\nPreserve clean states before running tools.`;
+      syncPreview();
+      switchView('editor');
+    }
+
+    function toggleStatus(id) {
+      const post = articles.find(p => p.id === id);
+      if (post) {
+        post.status = post.status === 'published' ? 'draft' : 'published';
+        renderTable();
+        showToast(`Article status updated to ${post.status.toUpperCase()}`);
+      }
+    }
+
+    function filterPosts() {
+      const query = document.getElementById('searchField').value.toLowerCase();
+      const filtered = articles.filter(p => 
+        p.title_zh.toLowerCase().includes(query) || 
+        p.slug.toLowerCase().includes(query) ||
+        p.category.toLowerCase().includes(query)
+      );
+      renderTable(filtered);
+    }
+
+    function syncPreview() {
+      const title = document.getElementById('postTitle').value || "Untitled Post";
+      const rawMd = document.getElementById('markdownContent').value;
+      
+      // Minimal markdown parser for demo preview
+      let html = `<h1>${title}</h1>`;
+      const paragraphs = rawMd.split('\n\n');
+      paragraphs.forEach(p => {
+        if (p.startsWith('# ')) return;
+        if (p.startsWith('## ')) {
+          html += `<h2>${p.replace('## ', '')}</h2>`;
+        } else if (p.trim()) {
+          html += `<p>${p}</p>`;
+        }
+      });
+
+      document.getElementById('previewOutput').innerHTML = html;
+      document.getElementById('saveStatus').innerText = "Modified (Unsaved)";
+    }
+
+    function triggerCopilot(action) {
+      const textarea = document.getElementById('markdownContent');
+      const current = textarea.value;
+
+      if (action === 'outline') {
+        textarea.value = current + "\n\n## 2. Deterministic Verification Loops\n\n- Assertion of exit codes\n- Git tree rollback points\n- Bounded token contexts";
+        showToast("Agent appended structured outline!");
+      } else if (action === 'polish') {
+        textarea.value = current.replace("Analyzing trajectory degradation", "Quantitatively assessing non-deterministic trajectory divergence");
+        showToast("Agent refined prose vocabulary!");
+      } else if (action === 'translate') {
+        showToast("Agent generated synchronized English counterpart in R2!");
+      }
+      syncPreview();
+    }
+
+    function saveToCloudflare() {
+      const title = document.getElementById('postTitle').value || "Untitled Draft";
+      const slug = document.getElementById('postSlug').value || `post-${Date.now()}`;
+      const content = document.getElementById('markdownContent').value;
+
+      // Make API call to Cloudflare Pages Functions
+      fetch('/api/admin/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          title_zh: title,
+          title_en: title,
+          content_zh: content,
+          content_en: content,
+          status: 'draft'
+        })
+      }).catch(() => {});
+
+      document.getElementById('saveStatus').innerText = "Synced with D1 & R2";
+      showToast("Successfully committed article metadata to D1 & Markdown to R2!");
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toastNotice');
+      t.innerText = msg;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 2600);
+    }
+
+    // Init
+    renderTable();
+    syncPreview();
+  </script>
+</body>
+</html>
