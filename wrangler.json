@@ -11,12 +11,6 @@
       "database_id": "316fba6c-721e-41ea-b628-ec09798a18bf"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "MEDIA",
-      "bucket_name": "ai-agent-blog-media"
-    }
-  ],
   "ai": {
     "binding": "AI"
   }
